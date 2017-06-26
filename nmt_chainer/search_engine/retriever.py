@@ -22,9 +22,10 @@ class BaseEngine:
 
 
 class Retriever:
-    def __init__(self, engine, similarity, training=False):
+    def __init__(self, engine, similarity, limit=None, training=False):
         self.__engine = engine
         self.__similarity = similarity
+        self.__limit = limit
         self.__training = training
 
     def retrieve(self, src):
@@ -36,6 +37,8 @@ class Retriever:
         coverage = 0
         src_symbols = src.split(" ")
         for pair in subset:
+            if self.__limit is not None and self.__limit >= len(R):
+                break
             sentences = [pair_[0] for pair_ in R] + [pair[0]]
             symbols = flatten([s.split(" ") for s in sentences])
             c_tmp = sum([s in symbols for s in src_symbols]) / len(src_symbols)

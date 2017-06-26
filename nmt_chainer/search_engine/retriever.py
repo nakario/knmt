@@ -23,21 +23,21 @@ class BaseEngine:
 
 class Retriever:
     def __init__(self, engine, similarity, limit=None, training=False):
-        self.__engine = engine
-        self.__similarity = similarity
-        self.__limit = limit
-        self.__training = training
+        self.engine = engine
+        self.similarity = similarity
+        self.limit = limit
+        self.training = training
 
     def retrieve(self, src):
-        subset = self.__engine.search(src)
-        if self.__training:
+        subset = self.engine.search(src)
+        if self.training:
             subset = filter(lambda x: x[0] != src, subset)
         subset = self.__rerank(subset, src)
         R = []
         coverage = 0
         src_symbols = src.split(" ")
         for pair in subset:
-            if self.__limit is not None and self.__limit >= len(R):
+            if self.limit is not None and self.limit >= len(R):
                 break
             sentences = [pair_[0] for pair_ in R] + [pair[0]]
             symbols = flatten([s.split(" ") for s in sentences])
@@ -48,7 +48,7 @@ class Retriever:
         return R
 
     def __rerank(self, pairs, src):
-        return sorted(pairs, reverse=True, key=lambda pair: self.__similarity(pair[0], src))
+        return sorted(pairs, reverse=True, key=lambda pair: self.similarity(pair[0], src))
 
 
 def flatten(x):

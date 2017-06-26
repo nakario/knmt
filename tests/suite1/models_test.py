@@ -395,14 +395,14 @@ class TestSearchEngineGuidedNonParam:
         # create engine
         from tempfile import gettempdir
         from os.path import join
-        from nmt_chainer.search_engine.index import create_index
+        from nmt_chainer.search_engine.index import get_index
         import codecs
         with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/zh", "r", "utf-8") as src:
             src_txt = src.readline()
             log.info("src_txt is [%s]" % src_txt)
             src.seek(0, 0)
             with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/ja", "r", "utf-8") as tgt:
-                index = create_index(join(gettempdir(), "index"), src, tgt)
+                index = get_index(gettempdir(), src, tgt)
         from nmt_chainer.search_engine.whoosh_engine import WhooshEngine
         engine = WhooshEngine(10, index)
 

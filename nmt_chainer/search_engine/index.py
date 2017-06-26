@@ -13,14 +13,13 @@ __email__ = "nakario@gmail.com"
 __status__ = "Development"
 
 
-def create_index(index_path, x, y):
-    schema = Schema(X=TEXT(stored=True), Y=TEXT(stored=True))
-    if not os.path.exists(index_path):
-        os.mkdir(index_path)
+def get_index(index_path, x, y, create_new=False):
+    if create_new:
+        schema = Schema(X=TEXT(stored=True), Y=TEXT(stored=True), N=ID(stored=True))
         ix = create_in(index_path, schema)
         writer = ix.writer()
-        for (a, b) in zip(x, y):
-            writer.add_document(X=a.strip(), Y=b.strip())
+        for i, (a, b) in enumerate(zip(x, y)):
+            writer.add_document(X=a.strip(), Y=b.strip(), N=unicode(i))
         writer.commit()
     else:
         ix = open_dir(index_path)

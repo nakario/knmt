@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from whoosh.index import create_in, open_dir
-from whoosh.fields import Schema, TEXT
+from whoosh.fields import Schema, TEXT, ID
 import os
 
 
@@ -15,11 +15,11 @@ __status__ = "Development"
 
 def get_index(index_path, x, y, create_new=False):
     if create_new:
-        schema = Schema(X=TEXT(stored=True), Y=TEXT(stored=True), N=ID(stored=True))
+        schema = Schema(SRC=TEXT(stored=True), TGT=TEXT, ID=ID)
         ix = create_in(index_path, schema)
         writer = ix.writer()
         for i, (a, b) in enumerate(zip(x, y)):
-            writer.add_document(X=a.strip(), Y=b.strip(), N=unicode(i))
+            writer.add_document(SRC=a.strip(), TGT=b.strip(), ID=unicode(i))
         writer.commit()
     else:
         ix = open_dir(index_path)

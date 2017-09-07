@@ -94,7 +94,8 @@ class EncoderDecoder(Chain):
                  encoder_cell_type=rnn_cells.LSTMCell,
                  decoder_cell_type=rnn_cells.LSTMCell,
                  lexical_probability_dictionary=None, lex_epsilon=1e-3,
-                 use_goto_attention=False
+                 use_goto_attention=False,
+                 search_engine_index=None
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -126,7 +127,6 @@ class EncoderDecoder(Chain):
                  use_soft_prediction_feedback=False, 
                 use_gumbel_for_soft_predictions=False,
                 temperature_for_soft_predictions=1.0,
-                 use_reference_memory=False
                  ):
         assert mode in "test train".split()
 

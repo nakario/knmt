@@ -18,6 +18,10 @@ import gzip
 
 from nmt_chainer.utilities.utils import ensure_path
 import nmt_chainer.dataprocessing.processors as processors
+from nmt_chainer.search_engine.index import get_index
+from nmt_chainer.search_engine.whoosh_engine import WhooshEngine
+import nmt_chainer.search_engine.similarity as similarity
+from nmt_chainer.search_engine.retriever import Retriever
 
 logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
@@ -94,11 +98,18 @@ def do_make_data(config):
 
         bi_idx.add_preprocessor(pp)
 
-    def load_data(src_fn, tgt_fn, max_nb_ex=None, infos_dict=None):
+    retriever = None
+    if config.data.search_engine_index is not None:
+        with (open(config.data.src_fn, "r"), open(config.data.tgt_fn, "r")) as (src, tgt):
+            index = get_index(config.data.search_engine_index, src, tgt, create_new=config.data.create_index)
+        engine = WhooshEngine(100, index)
+        retriever = Retriever(engine, similarity.fuzzy_word_level_similarity, training=True)
+
+    def load_data(src_fn, tgt_fn, max_nb_ex=None, infos_dict=None, retriever=None):
 
         training_data, stats_src, stats_tgt = processors.build_dataset_pp(
             src_fn, tgt_fn, bi_idx,
-            max_nb_ex=max_nb_ex)
+            max_nb_ex=max_nb_ex, retriever=retriever)
 
         log.info("src data stats:\n%s", stats_src.make_report())
         log.info("tgt data stats:\n%s", stats_tgt.make_report())
@@ -114,7 +125,10 @@ def do_make_data(config):
 
     log.info("loading training data from %s and %s" %
              (config.data.src_fn, config.data.tgt_fn))
-    training_data = load_data(config.data.src_fn, config.data.tgt_fn, max_nb_ex=config.data.max_nb_ex, infos_dict=infos["train"])
+    training_data = load_data(config.data.src_fn, config.data.tgt_fn, max_nb_ex=config.data.max_nb_ex, infos_dict=infos["train"], retriever=retriever)
+
+    if retriever is not None:
+        retriever.training = False
 
     dev_data = None
     if config.data.dev_src is not None:
@@ -122,7 +136,7 @@ def do_make_data(config):
                  (config.data.dev_src, config.data.dev_tgt))
         infos["dev"] = collections.OrderedDict()
         dev_data = load_data(
-            config.data.dev_src, config.data.dev_tgt, infos_dict=infos["dev"])
+            config.data.dev_src, config.data.dev_tgt, infos_dict=infos["dev"], retriever=retriever)
 
     test_data = None
     if config.data.test_src is not None:
@@ -130,7 +144,7 @@ def do_make_data(config):
                  (config.data.test_src, config.data.test_tgt))
         infos["test"] = collections.OrderedDict()
         test_data = load_data(
-            config.data.test_src, config.data.test_tgt, infos_dict=infos["test"])
+            config.data.test_src, config.data.test_tgt, infos_dict=infos["test"], retriever=retriever)
 
     config.insert_section("infos", infos, even_if_readonly=True, keep_at_bottom="metadata", overwrite=False)
 

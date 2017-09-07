@@ -299,7 +299,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 
 
 def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb=None,
-                s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
+                s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#", use_search_engine=False):
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample=True, need_score=True,
                                              mode="test")

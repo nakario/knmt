@@ -479,6 +479,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                           config_training,
                           stop_trigger=None,
                           test_data=None, dev_data=None, valid_data=None,
+                          use_search_engine=False
                           ):
 
     output_dir = config_training.training_management.save_prefix
@@ -531,7 +532,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                        repeat=True,
                                                        shuffle=reshuffle_every_epoch)
 
-    def loss_func(src_batch, tgt_batch, src_mask):
+    def loss_func(src_batch, tgt_batch, src_mask, similar_batches=None):
 
         t0 = time.clock()
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
@@ -540,7 +541,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                           mode="train",
                                                           use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                                           use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                                          temperature_for_soft_predictions=temperature_for_soft_predictions,
+                                                          similar_batches=similar_batches)
         avg_loss = total_loss / total_nb_predictions
 
         t1 = time.clock()
@@ -552,7 +554,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         return avg_loss
 
     def convert_mb(mb_raw, device):
-        return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+        return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off",
+                                  need_arg_sort=False, use_search_engine=use_search_engine)
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,

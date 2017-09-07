@@ -999,7 +999,7 @@ def izip_must_equal(it1, it2):
         yield s1, s2
 
 
-def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
+def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None, retriever=None):
     #                   src_voc_limit=None, tgt_voc_limit=None, max_nb_ex=None, dic_src=None, dic_tgt=None,
     #                   tgt_segmentation_type="word", src_segmentation_type="word"):
 
@@ -1032,7 +1032,12 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
     for sentence_src, sentence_tgt in izip_must_equal(src, tgt):
         #         print len(sentence_tgt), len(sentence_src)
         seq_src, seq_tgt = bi_idx.convert(sentence_src, sentence_tgt, stats_src, stats_tgt)
-        res.append((seq_src, seq_tgt))
+        if retriever is not None:
+            retrieved = retriever.retrieve(sentence_src)
+            seq_id = [int(r["N"]) for r in retrieved]
+            res.append((seq_src, seq_tgt, seq_id))
+        else:
+            res.append((seq_src, seq_tgt))
 
     return res, stats_src, stats_tgt
 

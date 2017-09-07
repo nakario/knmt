@@ -47,6 +47,10 @@ def define_parser(parser):
     data_group.add_argument("--mode_align", choices=["unk_align", "all_align"])
     data_group.add_argument("--align_fn", help="align file for training data")
 
+    data_group.add_argument("--search_engine_index", dest="search_engine_index",
+                            help="specify a search engine's index directory")
+    data_group.add_argument("--create_index", action="store_true", help="create a search engine's index")
+
     processing_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["processing"])
     processing_group.add_argument("--src_voc_size", type=int, default=32000,
                                   help="limit source vocabulary size to the n most frequent words")

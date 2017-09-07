@@ -54,7 +54,8 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, volatile="off"):
         return [Variable(x, volatile=volatile) for x in src_batch], src_mask
 
 
-def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volatile="off", need_arg_sort=False):
+def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volatile="off", need_arg_sort=False,
+                       use_search_engine=False):
     if need_arg_sort:
         training_data_with_argsort = zip(training_data, range(len(training_data)))
         training_data_with_argsort.sort(key=lambda x: len(x[0][1]), reverse=True)
@@ -62,11 +63,11 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volati
     else:
         training_data = sorted(training_data, key=lambda x: len(x[1]), reverse=True)
 #     max_src_size = max(len(x) for x, y  in training_data)
-    max_tgt_size = max(len(y) for _, y in training_data)
+    max_tgt_size = max(len(data[1]) for data in training_data)
     mb_size = len(training_data)
 
     src_batch, src_mask = make_batch_src(
-        [x for x, y in training_data], padding_idx=padding_idx, gpu=gpu, volatile=volatile)
+        [data[0] for data in training_data], padding_idx=padding_idx, gpu=gpu, volatile=volatile)
 
     lengths_list = []
     lowest_non_finished = mb_size - 1
@@ -96,10 +97,25 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volati
     else:
         tgt_batch_v = [Variable(x, volatile=volatile) for x in tgt_batch]
 
+    if use_search_engine:
+        similar_batches = []
+        for _, _, ids in training_data:
+            similar_batches.append(make_batch_src_tgt(
+                [(training_data[id][0], training_data[id][1]) for id in ids],
+                eos_idx=eos_idx, padding_idx=padding_idx, gpu=gpu, volatile=volatile,
+                need_arg_sort=False, use_search_engine=False
+            ))
+
     if need_arg_sort:
-        return src_batch, tgt_batch_v, src_mask, argsort
+        if use_search_engine:
+            return src_batch, tgt_batch_v, src_mask, argsort, similar_batches
+        else:
+            return src_batch, tgt_batch_v, src_mask, argsort
     else:
-        return src_batch, tgt_batch_v, src_mask
+        if use_search_engine:
+            return src_batch, tgt_batch_v, src_mask, similar_batches
+        else:
+            return src_batch, tgt_batch_v, src_mask
 
 
 def make_batch_tgt(training_data, eos_idx=1, gpu=None, volatile="off", need_arg_sort=False):

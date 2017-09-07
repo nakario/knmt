@@ -388,7 +388,7 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, use_search_engine=False):
         #         assert cell_type in "gru dgru lstm slow_gru".split()
         #         self.cell_type = cell_type
         #         if cell_type == "gru":
@@ -424,7 +424,10 @@ class Decoder(Chain):
         self.add_param("bos_embeding", (1, Eo))
 
         self.context_memory = None
-        self.using_context_memory = False
+        self.using_context_memory = use_search_engine
+        if use_search_engine:
+            self.add_link("context_similarity_computer", ContextSimilarityComputer(Hi))
+            self.add_link("fusion_gate_computer", FusionGateComputer(Hi, Ho))
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
@@ -498,6 +501,4 @@ class Decoder(Chain):
     def use_context_memory(self, context_memory):
         if not self.using_context_memory:
             self.context_memory = context_memory
-            self.add_link("context_similarity_computer", ContextSimilarityComputer(self.Hi))
-            self.add_link("fusion_gate_computer", FusionGateComputer(self.Hi, self.Ho))
             self.using_context_memory = True

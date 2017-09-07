@@ -295,12 +295,20 @@ def do_train(config_training):
         log.info("filtering sentences of length larger than %i" % (max_src_tgt_length))
         filtered_training_data = []
         nb_filtered = 0
-        for src, tgt in training_data:
-            if len(src) <= max_src_tgt_length and len(
-                    tgt) <= max_src_tgt_length:
-                filtered_training_data.append((src, tgt))
-            else:
-                nb_filtered += 1
+        if config_training.data.search_engine_index is not None:
+            for src, tgt, ids in training_data:
+                if len(src) <= max_src_tgt_length and len(
+                        tgt) <= max_src_tgt_length:
+                    filtered_training_data.append((src, tgt, ids))
+                else:
+                    nb_filtered += 1
+        else:
+            for src, tgt in training_data:
+                if len(src) <= max_src_tgt_length and len(
+                        tgt) <= max_src_tgt_length:
+                    filtered_training_data.append((src, tgt))
+                else:
+                    nb_filtered += 1
         log.info("filtered %i sentences of length larger than %i" % (nb_filtered, max_src_tgt_length))
         training_data = filtered_training_data
 
@@ -404,7 +412,8 @@ def do_train(config_training):
                                                    src_indexer, tgt_indexer, eos_idx=eos_idx,
                                                    config_training=config_training,
                                                    stop_trigger=stop_trigger,
-                                                   test_data=test_data, dev_data=dev_data, valid_data=valid_data
+                                                   test_data=test_data, dev_data=dev_data, valid_data=valid_data,
+                                                   use_search_engine=(config_training.data.search_engine_index is not None)
                                                    )
 
 

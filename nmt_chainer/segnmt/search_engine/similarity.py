@@ -4,10 +4,8 @@ from typing import List
 
 from nltk import edit_distance
 from nltk.translate import bleu_score
-from pyknp import Juman
 
 
-juman = Juman()
 N = 100
 
 
@@ -32,31 +30,6 @@ def bleu(x: str, y: str) -> float:
 
 def no_change(_x: str, _y: str) -> float:
     return 1.0
-
-
-def _jiritsugo(s: str) -> str:
-    result = juman.analysis("".join(s.strip().split()))
-    return " ".join([
-        m.genkei for m in result.mrph_list()
-        if m.hinsi in ["名詞", "動詞", "形容詞", "未定義語"]
-    ])
-
-
-def _hinshi(s: str) -> str:
-    result = juman.analysis("".join(s.strip().split()))
-    return " ".join([m.hinsi for m in result.mrph_list()])
-
-
-def jiritsugo_edit_distance(x: str, y: str) -> float:
-    x_j = _jiritsugo(x)
-    y_j = _jiritsugo(y)
-    return word_level_edit_distance(x_j, y_j)
-
-
-def hinshi_edit_distance(x: str, y: str) -> float:
-    x_h = _hinshi(x)
-    y_h = _hinshi(y)
-    return word_level_edit_distance(x_h, y_h)
 
 
 def ngram_coverage(x: str, y: str) -> float:
@@ -110,8 +83,6 @@ functions: Dict[str, Callable[[str, str], float]] = {
     'edit-char': char_level_edit_distance,
     'bleu': bleu,
     'no-change': no_change,
-    'edit-jiritsugo': jiritsugo_edit_distance,
-    'edit-hinshi': hinshi_edit_distance,
     'ngram-coverage': ngram_coverage,
     'match-length': match_length
 }

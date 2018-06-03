@@ -408,7 +408,10 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
     """
     
     with chainer.using_config("train", False), chainer.no_backprop_mode():
-        states, logits, attn = cell.get_initial_logits()
+        context_memory_size = None
+        if cell.context_memory is not None:
+            context_memory_size = cell.context_memory[0].shape[1]
+        states, logits, attn, beta = cell.get_initial_logits(context_memory_size=context_memory_size)
     
         score = 0
         sequences = []
@@ -441,9 +444,9 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
     
             previous_word = Variable(curr_idx)
     
-            states, logits, attn = cell(states, previous_word)
+            states, logits, attn, beta = cell(states, previous_word, beta)
     
-        return sequences, score, attn_list
+        return sequences, score, attn_list, beta
 
 
 class Decoder(Chain):
@@ -577,7 +580,7 @@ class Decoder(Chain):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
                                                        lexicon_probability_matrix=lexicon_probability_matrix,
                                                        lex_epsilon=lex_epsilon)
-        sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best=best,
+        sequences, score, attn_list, beta = sample_from_decoder_cell(decoding_cell, nb_steps, best=best,
                                                                keep_attn_values=keep_attn_values,
                                                                need_score=need_score)
 

@@ -1,6 +1,6 @@
 import argparse
 
-from segnmt.eval.eval import evaluate
+from nmt_chainer.segnmt.eval.eval import evaluate
 
 
 def define_parser(parser: argparse.ArgumentParser):

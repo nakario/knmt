@@ -6,9 +6,9 @@ from typing import Tuple
 import chainer
 from chainer import Variable
 
-from segnmt.misc.typing import ndarray
-from segnmt.models.encoder import Encoder
-from segnmt.models.decoder import Decoder
+from nmt_chainer.segnmt.misc.typing import ndarray
+from nmt_chainer.segnmt.models.encoder import Encoder
+from nmt_chainer.segnmt.models.decoder import Decoder
 
 
 logger = getLogger(__name__)

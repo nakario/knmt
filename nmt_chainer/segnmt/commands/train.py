@@ -1,6 +1,6 @@
 import argparse
 
-from segnmt.train.train import train
+from nmt_chainer.segnmt.train.train import train
 
 
 def define_parser(parser: argparse.ArgumentParser):

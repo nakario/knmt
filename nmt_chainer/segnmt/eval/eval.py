@@ -8,13 +8,13 @@ import chainer
 import matplotlib
 from nltk.translate import bleu_score
 
-from segnmt.models.encdec import EncoderDecoder
-from segnmt.train.train import decode_bpe
-from segnmt.train.train import convert
-from segnmt.train.train import convert_with_similar_sentences
-from segnmt.train.train import load_vocab
-from segnmt.train.train import load_data
-from segnmt.train.train import load_validation_data
+from nmt_chainer.segnmt.models.encdec import EncoderDecoder
+from nmt_chainer.segnmt.train.train import decode_bpe
+from nmt_chainer.segnmt.train.train import convert
+from nmt_chainer.segnmt.train.train import convert_with_similar_sentences
+from nmt_chainer.segnmt.train.train import load_vocab
+from nmt_chainer.segnmt.train.train import load_data
+from nmt_chainer.segnmt.train.train import load_validation_data
 
 
 logger = getLogger(__name__)

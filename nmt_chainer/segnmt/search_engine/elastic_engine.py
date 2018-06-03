@@ -9,7 +9,7 @@ from elasticsearch.helpers import bulk
 from elasticsearch_dsl import Mapping
 from elasticsearch_dsl import Text
 
-from segnmt.search_engine.retriever import BaseEngine
+from nmt_chainer.segnmt.search_engine.retriever import BaseEngine
 
 
 logger = getLogger(__name__)

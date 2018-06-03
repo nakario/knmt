@@ -20,11 +20,11 @@ from nltk.translate import bleu_score
 import numpy as np
 from progressbar import ProgressBar
 
-from segnmt.misc.constants import EOS
-from segnmt.misc.constants import PAD
-from segnmt.misc.constants import UNK
-from segnmt.misc.typing import ndarray
-from segnmt.models.encdec import EncoderDecoder
+from nmt_chainer.segnmt.misc.constants import EOS
+from nmt_chainer.segnmt.misc.constants import PAD
+from nmt_chainer.segnmt.misc.constants import UNK
+from nmt_chainer.segnmt.misc.typing import ndarray
+from nmt_chainer.segnmt.models.encdec import EncoderDecoder
 
 
 logger = getLogger(__name__)

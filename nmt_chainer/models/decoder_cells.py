@@ -143,7 +143,7 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn, beta
 
-    def get_initial_logits(self, mb_size=None):
+    def get_initial_logits(self, mb_size=None, context_memory_size=None):
         if mb_size is None:
             mb_size = self.mb_size
         assert mb_size is not None
@@ -152,9 +152,15 @@ class ConditionalizedDecoderCell(object):
 
         prev_y = F.broadcast_to(self.decoder_chain.bos_embeding, (mb_size, self.decoder_chain.Eo))
 
-        new_states, logits, attn = self.advance_one_step(previous_states, prev_y)
+        beta=None
+        if context_memory_size:
+            beta = Variable(
+                cell.xp.zeros((mb_size, context_memory_size), 'f')
+            )
 
-        return new_states, logits, attn
+        new_states, logits, attn, beta = self.advance_one_step(previous_states, prev_y, beta)
+
+        return new_states, logits, attn, beta
 
     def __call__(self, prev_states, inpt, is_soft_inpt=False, beta=None):
         if is_soft_inpt:
@@ -331,15 +337,12 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
 
     mb_size = targets[0].data.shape[0]
     assert cell.mb_size is None or cell.mb_size == mb_size
-    states, logits, attn = cell.get_initial_logits(mb_size)
-
-    total_nb_predictions = 0
-    beta = None
+    context_memory_size = None
     if cell.context_memory is not None:
         context_memory_size = cell.context_memory[0].shape[1]
-        beta = Variable(
-            cell.xp.zeros((mb_size, context_memory_size), 'f')
-        )
+    states, logits, attn, beta = cell.get_initial_logits(mb_size, context_memory_size)
+
+    total_nb_predictions = 0
 
     for i in six.moves.range(len(targets)):
         if keep_attn:

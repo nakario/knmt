@@ -362,7 +362,7 @@ def do_train(config_training):
     if len(already_existing_files) > 0:
         print("Warning: existing files are going to be replaced / updated: ", already_existing_files)
         if not config_training.training_management.force_overwrite:
-            raw_input("Press Enter to Continue")
+            input("Press Enter to Continue")
 
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
@@ -412,7 +412,7 @@ def do_train(config_training):
         filtered_training_data = []
         filtered_training_index = []
         nb_filtered = 0
-        for i, src, tgt in enumerate(training_data):
+        for i, (src, tgt) in enumerate(training_data):
             if len(src) <= max_src_tgt_length and len(
                     tgt) <= max_src_tgt_length:
                 filtered_training_data.append((src, tgt))
@@ -430,7 +430,7 @@ def do_train(config_training):
         training_index = np.array(training_index)[p].tolist()
         log.info("done")
 
-    if config_training.training.search_engine_guided:
+    if config_training.model.search_engine_guided:
         indexer = {v: i for i, v in enumerate(training_index)}
         train_sim = []
         with open(config_training.training_management.save_prefix + '.train_sim') as f:

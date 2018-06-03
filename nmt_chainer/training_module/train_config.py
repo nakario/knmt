@@ -53,6 +53,9 @@ def define_parser(parser):
     model_description_group.add_argument("--ff_residual_mode", default="normal", choices="normal none after".split())
     model_description_group.add_argument("--ff_no_normalize", default=False, action="store_true")
     model_description_group.add_argument("--use_own_layer_normalization", default=False, action="store_true")
+
+    model_description_group.add_argument("--search_engine_guided", default=False, action="store_true", help="Use similar sentences")
+    model_description_group.add_argument("--fusion_mode", choices=["deep", "shallow"], default="deep", help="Specify how to use similar sentences")
     
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
@@ -86,10 +89,8 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--load_initial_source_embeddings")
     training_paramenters_group.add_argument("--load_initial_target_embeddings")
 
-    training_paramenters_group.add_argument("--search_engine_guided", default=False, action="store_true", help="Use similar sentences")
     training_paramenters_group.add_argument("--similar_limit", type=int, default=2, help="The number of similar sentences")
     training_paramenters_group.add_argument("--similar_limit_validation", type=int, default=4, help="The number of similar sentences")
-    training_paramenters_group.add_argument("--fusion_mode", choices=["deep", "shallow"], default="deep", help="Specify how to use similar sentences")
 
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")

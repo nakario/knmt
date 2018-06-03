@@ -16,9 +16,14 @@ import json
 import operator
 import os.path
 import gzip
+from pathlib import Path
+from time import sleep
 
 from nmt_chainer.utilities.utils import ensure_path
 import nmt_chainer.dataprocessing.processors as processors
+from nmt_chainer.segnmt.preproc.preproc import make_sim
+from nmt_chainer.segnmt.search_engine.elastic_engine import create_index
+from nmt_chainer.segnmt.search_engine.similarity import functions
 
 logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
@@ -165,3 +170,31 @@ def do_make_data(config):
 
     with gzip.open(data_fn, "w") as output_file:
         output_file.write(json.dumps(data_all, indent=2, separators=(',', ': ')).encode('utf-8'))
+
+    if config.processing.search_engine_guided:
+        create_index(
+            'segnmt', 'pairs',
+            Path(config.data.src_fn),
+            Path(config.data.tgt_fn)
+        )
+        sleep(180)
+        make_sim(
+            config.data.src_fn,
+            config.data.save_prefix + '.train_sim',
+            True,
+            functions.get(config.processing.similarity_function),
+        )
+        if config.data.dev_src:
+            make_sim(
+                config.data.dev_src,
+                config.data.save_prefix + '.dev_sim',
+                False,
+                functions.get(config.processing.similarity_function),
+            )
+        if config.data.test_src:
+            make_sim(
+                config.data.test_src,
+                config.data.save_prefix + '.test_sim',
+                False,
+                functions.get(config.processing.similarity_function),
+            )

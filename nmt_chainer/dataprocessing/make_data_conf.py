@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from nmt_chainer.utilities import argument_parsing_tools
+from nmt_chainer.segnmt.search_engine.similarity import functions
 import logging
 import six
 
@@ -75,6 +76,15 @@ def define_parser(parser):
     processing_group.add_argument("--source_char_conversion", help="give file containing target char equivalent to source")
 
     processing_group.add_argument("--force_overwrite", default=False, action="store_true", help="Do not ask before overwiting existing files")
+    processing_group.add_argument(
+        "--search_engine_guided", default=False, action="store_true",
+        help="Use similar sentences to improve accuracy"
+    )
+    processing_group.add_argument(
+        "--similarity_function", choices=functions.keys(),
+        default=list(functions.keys())[0],
+        help="Specify how similarity is calculated"
+    )
 
 
 class CommandLineValuesException(Exception):

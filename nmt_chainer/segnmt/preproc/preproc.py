@@ -11,8 +11,8 @@ from typing import Union
 from joblib import delayed
 from joblib import Parallel
 
-from nmt_chainer.segnmt.external_libs.bpe import learn_bpe
-from nmt_chainer.segnmt.external_libs.bpe import apply_bpe
+from nmt_chainer.external_libs.bpe import learn_bpe
+from nmt_chainer.external_libs.bpe import apply_bpe
 from nmt_chainer.segnmt.search_engine.retriever import Retriever
 from nmt_chainer.segnmt.search_engine.similarity import functions
 from nmt_chainer.segnmt.search_engine.elastic_engine import ElasticEngine

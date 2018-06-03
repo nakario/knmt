@@ -31,6 +31,7 @@ def define_parser(parser):
     model_description_group.add_argument("--Ho", type=int, default=1024, help="Target hidden layer size.")
     model_description_group.add_argument("--Ha", type=int, default=1024, help="Attention Module Hidden layer size.")
     model_description_group.add_argument("--Hl", type=int, default=512, help="Maxout output size.")
+    model_description_group.add_argument("--Hg", type=int, default=512, help="Gate module hidden layer size")
     model_description_group.add_argument("--encoder_cell_type", default="lstm", help="cell type of encoder. format: type,param1:val1,param2:val2,...")  # where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
     model_description_group.add_argument("--decoder_cell_type", default="lstm", help="cell type of decoder. format same as for encoder")
     model_description_group.add_argument("--lexical_probability_dictionary", help="lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
@@ -84,6 +85,11 @@ def define_parser(parser):
     
     training_paramenters_group.add_argument("--load_initial_source_embeddings")
     training_paramenters_group.add_argument("--load_initial_target_embeddings")
+
+    training_paramenters_group.add_argument("--search_engine_guided", default=False, action="store_true", help="Use similar sentences")
+    training_paramenters_group.add_argument("--similar_limit", type=int, default=2, help="The number of similar sentences")
+    training_paramenters_group.add_argument("--similar_limit_validation", type=int, default=4, help="The number of similar sentences")
+    training_paramenters_group.add_argument("--fusion_mode", choices=["deep", "shallow"], default="deep", help="Specify how to use similar sentences")
 
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")

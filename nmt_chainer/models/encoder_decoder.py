@@ -70,33 +70,12 @@ from . import encoders
 
 
 class EncoderDecoder(Chain):
-    """ Do RNNSearch Encoding/Decoding
-
-        Args:
-            Vi: Source vocabulary size
-            Ei: Size of Source word embeddings
-            Hi: Size of source encoder hidden layer
-            Vo: Target Vocabulary Size
-            Eo: Size of Target word embeddings
-            Ho: Size of Decoder hidden state
-            Ha: Size of Attention mechanism hidden layer size
-            Hl: Size of maxout output layer
-            attn_cls: class of the Attention to be used
-
-
-        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
-        src_batch is as in the sequence parameter of Encoder
-        tgt_batch is as in the targets parameter of Decoder
-        src_mask is as in the mask parameter of Encoder
-
-        return loss and attention values
-    """
-
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
                  encoder_cell_type=rnn_cells.LSTMCell,
                  decoder_cell_type=rnn_cells.LSTMCell,
                  lexical_probability_dictionary=None, lex_epsilon=1e-3,
-                 use_goto_attention=False
+                 use_goto_attention=False,
+                 search_engine_guided=False, Hg=None, mode=None
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -104,7 +83,8 @@ class EncoderDecoder(Chain):
             enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
                                       cell_type=encoder_cell_type),
             dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
-                                      cell_type=decoder_cell_type, use_goto_attention=use_goto_attention)
+                                      cell_type=decoder_cell_type, use_goto_attention=use_goto_attention,
+                                      search_engine_guided=search_engine_guided, Hg=Hg, mode=mode)
         )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary
@@ -128,17 +108,17 @@ class EncoderDecoder(Chain):
     def initialize_embeddings(self, src_emb=None, tgt_emb=None, no_unk_src=False, no_unk_tgt=False):
         if src_emb is None and tgt_emb is None:
             log.warn("called initialize_embeddings with 2 None args")
-            
+
         if src_emb is not None:
             self.enc.initialize_embeddings(src_emb, no_unk=no_unk_src)
-            
+
         if tgt_emb is not None:
             self.dec.initialize_embeddings(tgt_emb, no_unk=no_unk_tgt)
 
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
                  raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
                  use_previous_prediction=0,
-                 use_soft_prediction_feedback=False, 
+                 use_soft_prediction_feedback=False,
                 use_gumbel_for_soft_predictions=False,
                 temperature_for_soft_predictions=1.0
                  ):
@@ -161,7 +141,7 @@ class EncoderDecoder(Chain):
                                          use_previous_prediction=use_previous_prediction,
                                          per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
                                          lex_epsilon=self.lex_epsilon,
-                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                         use_soft_prediction_feedback=use_soft_prediction_feedback,
                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
 
@@ -209,6 +189,29 @@ class EncoderDecoder(Chain):
             return loss, attn_list
 
         return scorer
+
+    def generate_context_memory(
+            self,
+            pairs,  #: List[Tuple[ndarray, ndarray]],
+    ):  # -> Tuple[ndarray, ndarray, ndarray]:
+        # len(pairs) == max_retrieved_count
+        contexts = []
+        states = []
+        indices = []
+        with chainer.no_backprop_mode(), chainer.using_config('train', False):
+            for (source, target) in pairs:
+                minibatch_size, max_sentence_size = source.shape
+                assert target.shape[0] == minibatch_size
+                encoded = self.enc(source)
+                c, s, i = zip(*self.dec.generate_keys(encoded, target))
+                contexts.extend(c)
+                states.extend(s)
+                indices.extend(i)
+        contexts = self.xp.dstack(contexts).swapaxes(1,2)
+        states = self.xp.dstack(states).swapaxes(1,2)
+        indices = self.xp.vstack(indices).swapaxes(0,1)
+        return contexts, states, indices
+
 
 #
 #     def get_sampler_reinf(self, fb_concat, mask, eos_idx, nb_steps = 50, use_best_for_sample = False,

@@ -110,6 +110,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         Ho = config_dict["Ho"]
         Ha = config_dict["Ha"]
         Hl = config_dict["Hl"]
+        Hg = config_dict.get("Hg", None)
     
         encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
         decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
@@ -136,6 +137,9 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
     
         use_goto_attention = config_dict.get("use_goto_attention", False)
+
+        search_engine_guided = config_dict["search_engine_guided"]
+        mode = config_dict.get("mode", "deep")
     
         # Creating encoder/decoder
         encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
@@ -145,7 +149,9 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
                                                                    decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
                                                                    lexical_probability_dictionary=lexical_probability_dictionary,
                                                                    lex_epsilon=lex_epsilon,
-                                                                   use_goto_attention=use_goto_attention)
+                                                                   use_goto_attention=use_goto_attention,
+                                                                   search_engine_guided=search_engine_guided,
+                                                                   Hg=Hg, mode=mode)
 
     return encdec
 
@@ -400,24 +406,39 @@ def do_train(config_training):
         log.info("No valid data found")
 
     max_src_tgt_length = config_training.training_management.max_src_tgt_length
+    training_index = list(range(len(training_data)))
     if max_src_tgt_length is not None:
         log.info("filtering sentences of length larger than %i" % (max_src_tgt_length))
         filtered_training_data = []
+        filtered_training_index = []
         nb_filtered = 0
-        for src, tgt in training_data:
+        for i, src, tgt in enumerate(training_data):
             if len(src) <= max_src_tgt_length and len(
                     tgt) <= max_src_tgt_length:
                 filtered_training_data.append((src, tgt))
+                filtered_training_index.append(i)
             else:
                 nb_filtered += 1
         log.info("filtered %i sentences of length larger than %i" % (nb_filtered, max_src_tgt_length))
         training_data = filtered_training_data
+        training_index = filtered_training_index
 
     if not config_training.training.no_shuffle_of_training_data:
         log.info("shuffling")
-        import random
-        random.shuffle(training_data)
+        p = np.random.permutation(len(training_data))
+        training_data = np.array(training_data)[p].tolist()
+        training_index = np.array(training_index)[p].tolist()
         log.info("done")
+
+    if config_training.training.search_engine_guided:
+        indexer = {v: i for i, v in enumerate(training_index)}
+        train_sim = []
+        with open(config_training.training_management.save_prefix + '.train_sim') as f:
+            for i, line in enumerate(f):
+                if i not in training_index:
+                    continue
+                train_sim.append(training_data[indexer[int(a)]] for line in f for a in line.strip().split() if int(a) in indexer.keys())
+        training_data = list(zip(training_data, train_sim))
 
     encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training,
                                                                   src_indexer=src_indexer, tgt_indexer=tgt_indexer,

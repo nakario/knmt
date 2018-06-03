@@ -21,6 +21,7 @@ from . import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
 
 from nmt_chainer.utilities.constant_batch_mul import batch_matmul_constant, matmul_constant
+from nmt_chainer.segnmt.models.decoder import SimilarityScoreFunction, GateFunction
 
 from .attention import AttentionModule
 
@@ -43,7 +44,8 @@ class ConditionalizedDecoderCell(object):
     
     """
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
-                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False,
+                 context_memory=None):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
@@ -59,7 +61,9 @@ class ConditionalizedDecoderCell(object):
             self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
             self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
 
-    def advance_state(self, previous_states, prev_y):
+        self.context_memory = context_memory
+
+    def advance_state(self, previous_states, prev_y, beta=None):
         current_mb_size = prev_y.data.shape[0]
         assert self.mb_size is None or current_mb_size <= self.mb_size
 
@@ -78,7 +82,10 @@ class ConditionalizedDecoderCell(object):
         concatenated = F.concat((prev_y, ci))
 
         new_states = self.decoder_chain.gru(previous_states, concatenated)
-        return new_states, concatenated, attn
+        state = new_states[-1]
+        if self.context_memory is not None and self.decoder_chain.mode == 'deep':
+            state, beta = self.fusion_state(self.context_memory, ci, state, beta)
+        return new_states, concatenated, attn, ci, beta
 
     def compute_logits(self, new_states, concatenated, attn):
         new_output_state = new_states[-1]
@@ -118,7 +125,7 @@ class ConditionalizedDecoderCell(object):
             logits += F.log(weighted_lex_probs + self.lex_epsilon)
         return logits
 
-    def advance_one_step(self, previous_states, prev_y):
+    def advance_one_step(self, previous_states, prev_y, beta):
 
         if self.noise_on_prev_word:
             current_mb_size = prev_y.data.shape[0]
@@ -126,11 +133,15 @@ class ConditionalizedDecoderCell(object):
             prev_y = prev_y * F.gaussian(Variable(self.noise_mean[:current_mb_size]),
                                          Variable(self.noise_lnvar[:current_mb_size]))
 
-        new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
+        new_states, concatenated, attn, ci, beta = self.advance_state(previous_states, prev_y, beta)
 
         logits = self.compute_logits(new_states, concatenated, attn)
+        if self.context_memory is not None and self.mode == 'shallow':
+            logits, beta = self.fusion_logit(
+                self.context_memory, ci, new_states[-1], logits, beta
+            )
 
-        return new_states, logits, attn
+        return new_states, logits, attn, beta
 
     def get_initial_logits(self, mb_size=None):
         if mb_size is None:
@@ -145,15 +156,161 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn
 
-    def __call__(self, prev_states, inpt, is_soft_inpt=False):
+    def __call__(self, prev_states, inpt, is_soft_inpt=False, beta=None):
         if is_soft_inpt:
             prev_y = F.matmul(inpt, self.decoder_chain.emb.W)
         else:
             prev_y = self.decoder_chain.emb(inpt)
 
-        new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
+        new_states, logits, attn, beta = self.advance_one_step(prev_states, prev_y, beta)
 
-        return new_states, logits, attn
+        return new_states, logits, attn, beta
+
+    def fusion_state(
+            self,
+            context_memory,  #: Tuple[ndarray, ndarray, ndarray],
+            context,  #: Variable,
+            state,  #: Variable,
+            beta,  #: Variable
+    ):  # -> Tuple[Variable, Variable]:
+        minibatch_size = state.shape[0]
+        associated_contexts = context_memory[0]
+        context_memory_size = associated_contexts.shape[1]
+        assert associated_contexts.shape == (
+            minibatch_size,
+            context_memory_size,
+            self.decoder_chain.Hi
+        )
+        associated_states = context_memory[1]
+        assert associated_states.shape == (
+            minibatch_size,
+            context_memory_size,
+            self.decoder_chain.Ho
+        )
+
+        assert beta.shape == (minibatch_size, context_memory_size)
+
+        matching_score = F.softmax(
+            self.decoder_chain.E(context, Variable(associated_contexts), beta), axis=1
+        )
+        assert matching_score.shape == \
+            (minibatch_size, context_memory_size)
+        self.decoder_chain.max_score = self.decoder_chain.xp.maximum(
+            self.decoder_chain.max_score,
+            self.decoder_chain.xp.max(matching_score.array)
+        )
+
+        averaged_state = F.sum(
+            F.scale(
+                associated_states,
+                matching_score,
+                axis=0
+            ),
+            axis=1
+        )
+        assert averaged_state.shape == state.shape
+
+        gate = self.decoder_chain.compute_gate(context, state, averaged_state)
+        assert gate.shape == (minibatch_size,)
+        if self.decoder_chain.gate_sum is not None:
+            self.decoder_chain.gate_sum += gate.array
+        else:
+            self.decoder_chain.gate_sum = gate.array
+
+        fusion = F.scale(averaged_state, gate, axis=0) \
+            + F.scale(state, (1. - gate), axis=0)
+
+        new_beta = beta + F.scale(matching_score, gate, axis=0)
+
+        return fusion, new_beta
+
+    def fusion_logit(
+            self,
+            context_memory,  #: Tuple[ndarray, ndarray, ndarray],
+            context,  #: Variable,
+            state,  #: Variable,
+            logit,  #: Variable,
+            beta,  #: Variable
+    ):  # -> Tuple[Variable, Variable]:
+        minibatch_size = state.shape[0]
+        associated_contexts = context_memory[0]
+        context_memory_size = associated_contexts.shape[1]
+        assert associated_contexts.shape == (
+            minibatch_size,
+            context_memory_size,
+            self.decoder_chain.Hi
+        )
+        associated_states = context_memory[1]
+        assert associated_states.shape == (
+            minibatch_size,
+            context_memory_size,
+            self.decoder_chain.Ho
+        )
+        associated_indices = context_memory[2]
+        assert associated_indices.shape == (
+            minibatch_size,
+            context_memory_size
+        )
+
+        assert beta.shape == (minibatch_size, context_memory_size)
+
+        matching_score = F.softmax(
+            self.decoder_chain.E(context, Variable(associated_contexts), beta), axis=1
+        )
+        assert matching_score.shape == \
+            (minibatch_size, context_memory_size)
+        self.decoder_chain.max_score = self.decoder_chain.xp.maximum(
+            self.decoder_chain.max_score,
+            self.decoder_chain.xp.max(matching_score.array)
+        )
+
+        averaged_state = F.sum(
+            F.scale(
+                associated_states,
+                matching_score,
+                axis=0
+            ),
+            axis=1
+        )
+        assert averaged_state.shape == state.shape
+
+        gate = self.decoder_chain.compute_gate(context, state, averaged_state)
+        assert gate.shape == (minibatch_size,)
+        if self.decoder_chain.gate_sum is not None:
+            self.decoder_chain.gate_sum += gate.array
+        else:
+            self.decoder_chain.gate_sum = gate.array
+
+        flatten_indices = (
+                associated_indices +
+                self.decoder_chain.xp.arange(
+                    minibatch_size
+                ).reshape((-1, 1)) * self.decoder_chain.Vo
+        ).flatten()
+        assert flatten_indices.shape == (minibatch_size * context_memory_size,)
+        indices_mask = (associated_indices != PAD).flatten()
+        assert indices_mask.shape == flatten_indices.shape
+
+        masked_score = F.where(
+            indices_mask,
+            F.flatten(F.scale(matching_score, gate, axis=0)),
+            self.decoder_chain.xp.zeros_like(flatten_indices, 'f')
+        )
+
+        fusion = F.log(F.reshape(
+            F.scatter_add(
+                F.flatten(
+                    F.scale(F.softmax(logit, axis=1), (1. - gate), axis=0)
+                ),
+                flatten_indices,
+                masked_score
+            ),
+            (minibatch_size, self.decoder_chain.Vo)
+        ))
+
+        new_beta = beta + F.scale(matching_score, gate, axis=0)
+
+        return fusion, new_beta
 
 
 def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
@@ -177,6 +334,12 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
     states, logits, attn = cell.get_initial_logits(mb_size)
 
     total_nb_predictions = 0
+    beta = None
+    if cell.context_memory is not None:
+        context_memory_size = cell.context_memory[0].shape[1]
+        beta = Variable(
+            cell.xp.zeros((mb_size, context_memory_size), 'f')
+        )
 
     for i in six.moves.range(len(targets)):
         if keep_attn:
@@ -226,7 +389,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                 else:
                     previous_word = targets[i]
 
-        states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
+        states, logits, attn, beta = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback, beta=beta)
 
     if raw_loss_info:
         return (loss, total_nb_predictions), attn_list
@@ -300,7 +463,8 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False,
+                 search_engine_guided=False, Hg=None, mode='shallow'):
         #         assert cell_type in "gru dgru lstm slow_gru".split()
         #         self.cell_type = cell_type
         #         if cell_type == "gru":
@@ -333,6 +497,11 @@ class Decoder(Chain):
             attn_module=attn_cls(Hi, Ha, Ho, init_orth=init_orth, 
                                  prev_word_embedding_size = Eo if use_goto_attention else None)
         )
+        if search_engine_guided:
+            with self.init_scope():
+                self.E = SimilarityScoreFunction(Hi)
+                self.compute_gate = GateFunction(Hi + Ho + Ho, Hg)
+
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
@@ -348,6 +517,13 @@ class Decoder(Chain):
             ortho_init(self.gru)
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
+
+        self.search_engine_guided = search_engine_guided
+        self.mode = mode
+        self.gate_sum = None
+        self.averaged_gate = None
+        self.averaged_beta = None
+        self.max_score = None
 
     def initialize_embeddings(self, emb_vectors, no_unk=False):
         log.info("initializing with precomputed target embeddings")

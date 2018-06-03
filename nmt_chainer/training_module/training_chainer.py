@@ -648,6 +648,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                           config_training,
                           stop_trigger=None,
                           test_data=None, dev_data=None, valid_data=None,
+                          search_engine_guided=False
                           ):
 
     output_dir = config_training.training_management.save_prefix
@@ -756,7 +757,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
             return avg_loss  
         def convert_mb(mb_raw, device):
-            return tuple(list(six.moves.zip(*mb_raw))) 
+            if search_engine_guided:
+                mb_raw, similars = list(zip(*mb_raw))
+                return tuple(list(six.moves.zip(*mb_raw))), tuple(list(six.moves.zip(*mb_raw)))
+            return tuple(list(six.moves.zip(*mb_raw)))
     else:
         def loss_func(src_batch, tgt_batch, src_mask):
     

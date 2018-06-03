@@ -407,6 +407,7 @@ def do_train(config_training):
 
     max_src_tgt_length = config_training.training_management.max_src_tgt_length
     training_index = list(range(len(training_data)))
+    training_data_len = len(training_data)
     if max_src_tgt_length is not None:
         log.info("filtering sentences of length larger than %i" % (max_src_tgt_length))
         filtered_training_data = []
@@ -432,14 +433,17 @@ def do_train(config_training):
 
     if config_training.model.search_engine_guided:
         indexer = {v: i for i, v in enumerate(training_index)}
+        lines = []
         train_sim = []
-        with open(config_training.training_management.save_prefix + '.train_sim') as f:
-            for i, line in enumerate(f):
-                if i not in training_index:
-                    continue
-                train_sim.append(training_data[indexer[int(a)]] for line in f for a in line.strip().split() if int(a) in indexer.keys())
+        train_indices = []
+        with open(config_training.training_management.data_prefix + '.train_sim') as f:
+            lines = np.array(list(f))[np.array(training_index)].tolist()
+        train_indices = [[indexer.get(int(a), None) for a in line.strip().split()] for line in lines]
+        train_indices = [[i for i in indices if i is not None] for indices in train_indices]
+        train_sim = [[training_data[i] for i in indices] for indices in train_indices]
         training_data = list(zip(training_data, train_sim))
 
+    log.info('create encdec')
     encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training,
                                                                   src_indexer=src_indexer, tgt_indexer=tgt_indexer,
                                                                   load_config_model="if_exists" if config_training.training_management.resume else "no")
